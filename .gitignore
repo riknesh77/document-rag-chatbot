@@ -8,3 +8,4 @@ npm-debug.log*
 .cache/
 server-models/
 .vercel/
+.vercel

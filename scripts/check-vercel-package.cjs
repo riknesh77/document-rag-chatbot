@@ -5,6 +5,7 @@ const manifest = require('./vercel-models.json');
 function traceFiles(route) {
   const files = new Set();
   for (const trace of [`.next/server/pages/api/${route}.js.nft.json`, '.next/next-server.js.nft.json']) {
+    if (!fs.existsSync(trace)) continue;
     for (const file of JSON.parse(fs.readFileSync(trace)).files) files.add(path.resolve(path.dirname(trace),file));
   }
   files.add(path.resolve(`.next/server/pages/api/${route}.js`));
