@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "installCommand": "npm ci --include=dev --onnxruntime-node-install=skip",
+  "buildCommand": "npm run build",
+  "functions": {
+    "pages/api/upload.js": { "maxDuration": 300 },
+    "pages/api/chat.js": { "maxDuration": 300 }
+  }
+}

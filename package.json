@@ -1,0 +1,39 @@
+{
+  "name": "ai-chatbot-document-rag",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "node scripts/prepare-vercel-models.cjs && prisma generate && next build && node scripts/check-vercel-package.cjs",
+    "start": "next start",
+    "test": "node --test tests/chunker.cjs tests/embedder.cjs tests/db.cjs tests/retrieval.cjs tests/rag.cjs tests/chat.cjs tests/generator.cjs && node tests/upload-mocked.cjs",
+    "test:upload": "node tests/upload-mocked.cjs",
+    "db:generate": "prisma generate",
+    "db:migrate": "node --env-file=.env.local node_modules/prisma/build/index.js migrate deploy",
+    "db:status": "node --env-file=.env.local node_modules/prisma/build/index.js migrate status",
+    "postinstall": "prisma generate",
+    "models:download": "node scripts/download-models.cjs",
+    "test:e2e": "node --env-file=.env.local tests/real-e2e.cjs",
+    "test:models": "node --test tests/local-models.cjs",
+    "debug:rag": "node scripts/rag-diagnose.cjs",
+    "test:document": "node scripts/rag-diagnose.cjs --evaluate tests/fixtures/sip-evaluation.json",
+    "models:vercel": "node scripts/prepare-vercel-models.cjs --force",
+    "test:vercel-package": "node tests/vercel-package.cjs"
+  },
+  "engines": {
+    "node": ">=20.16.0 <21 || >=22.3.0"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "4.3.0",
+    "@prisma/client": "6.19.3",
+    "formidable": "3.5.4",
+    "js-tiktoken": "1.0.21",
+    "next": "16.3.4",
+    "pdf-parse": "2.4.5",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "prisma": "6.19.3"
+  }
+}

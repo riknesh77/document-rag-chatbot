@@ -1,0 +1,34 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Document {
+  id          Int      @id @default(autoincrement())
+  title       String
+  filename    String
+  content     String   @db.Text
+  pageCount   Int
+  sizeBytes   Int
+  createdAt   DateTime @default(now())
+  chunks      Chunk[]
+}
+
+model Chunk {
+  id             Int      @id @default(autoincrement())
+  documentId     Int
+  document       Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  index          Int
+  text           String   @db.Text
+  tokenCount     Int
+  startToken     Int
+  endToken       Int
+  embeddingModel String   @default("Xenova/all-MiniLM-L6-v2")
+  embedding      Unsupported("vector(384)")
+
+  @@unique([documentId, index])
+}

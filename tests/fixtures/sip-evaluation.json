@@ -1,0 +1,14 @@
+{
+  "documentId": 5,
+  "documentTitle": "SIP Project Idea Draft.pdf",
+  "cases": [
+    {"kind":"direct","question":"Approximately how many historical ServiceDesk tickets may be available for analysis?","expected":"Approximately 3,000+ tickets","answerChunks":[1],"patterns":["3,?000"]},
+    {"kind":"direct","question":"Which metrics are proposed for evaluating the IT ticket classification models?","expected":"Precision, recall and F1-score","answerChunks":[1,2],"patterns":["precision","recall","F1"]},
+    {"kind":"direct","question":"What does the feasibility of the predictive maintenance project depend on?","expected":"Sufficient historical machine data and corresponding breakdown/maintenance records","answerChunks":[1],"patterns":["historical machine data","breakdown|maintenance records"]},
+    {"kind":"paraphrase","question":"Will the maintenance prototype cover every machine from the beginning, or start with a narrower scope?","expected":"Initially one suitable machine or machine type with sufficient historical data","answerChunks":[0],"patterns":["one","machine"]},
+    {"kind":"paraphrase","question":"How will employee and company privacy be protected before ticket analysis?","expected":"Sensitive information removed or anonymized","answerChunks":[1],"patterns":["remov|anonym"]},
+    {"kind":"multi-sentence","question":"Why is the IT service desk project considered feasible, and what conditions must be met to use its data?","expected":"Historical ServiceDesk data already available; approval and anonymization required","answerChunks":[2],"patterns":["available","approval","anonym"]},
+    {"kind":"unanswerable","question":"What is the approved budget in dollars for the IT service desk project?","expected":"Not found","answerChunks":[],"patterns":[]},
+    {"kind":"unanswerable","question":"What exact calendar date is the predictive maintenance system scheduled to go live?","expected":"Not found","answerChunks":[],"patterns":[]}
+  ]
+}
