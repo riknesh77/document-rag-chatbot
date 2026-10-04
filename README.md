@@ -8,6 +8,18 @@ retaining local MiniLM embeddings and reranking; see [VERCEL.md](VERCEL.md) for
 the production environment and packaging setup. Your existing `.env.local` is
 private and is never changed by the application.
 
+## 🚀 Deployment Status
+
+**Status:** ✅ Live on Vercel
+
+**Live demo:** https://document-rag-chatbot-two.vercel.app
+
+Production deployment is running on **Vercel** with **Supabase PostgreSQL + pgvector**,
+local **MiniLM embeddings and reranking**, and **Groq-hosted generation**. The deployed
+pipeline has been verified for PDF upload/indexing, normalized 384-dimensional
+embeddings, document-scoped RAG retrieval, grounded answers with citations, and
+refusal when the requested answer is not supported by the uploaded document.
+
 ## Start with the configured Supabase database
 
 Use Node.js 22.3+ or 24 and run these commands from the project root:
