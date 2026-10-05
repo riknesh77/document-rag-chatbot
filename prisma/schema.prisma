@@ -16,6 +16,59 @@ model Document {
   sizeBytes   Int
   createdAt   DateTime @default(now())
   chunks      Chunk[]
+  ownerId     String?
+  owner       User? @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  requirements Requirement[]
+  answers     Answer[]
+  @@index([ownerId, createdAt])
+}
+
+model User {
+  id String @id @default(cuid())
+  email String @unique
+  name String
+  passwordHash String?
+  isDemo Boolean @default(false)
+  createdAt DateTime @default(now())
+  sessions Session[]
+  documents Document[]
+}
+
+model Session {
+  tokenHash String @id
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  @@index([expiresAt])
+}
+
+model Requirement {
+  id String @id @default(cuid())
+  documentId Int
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  title String
+  category String
+  quote String @db.Text
+  done Boolean @default(false)
+  createdAt DateTime @default(now())
+  @@index([documentId])
+}
+
+model Answer {
+  id String @id @default(cuid())
+  documentId Int
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  question String
+  result Json
+  createdAt DateTime @default(now())
+  @@index([documentId, createdAt])
+}
+
+model RateLimit {
+  key String @id
+  count Int @default(1)
+  expiresAt DateTime
+  @@index([expiresAt])
 }
 
 model Chunk {

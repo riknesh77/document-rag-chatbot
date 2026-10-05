@@ -5,6 +5,8 @@ import { chunkText } from "../../lib/chunker";
 import { saveDocument, PersistenceError } from "../../lib/db";
 import { embedChunks, EmbeddingError, MODEL, DIMENSIONS } from "../../lib/embedder";
 import { MAX_PDF_BYTES, MAX_UPLOAD_BYTES, MAX_INGESTION_CHUNKS, uploadDetails } from "../../lib/uploadLimits";
+import { requireUser, checkOrigin, rateLimit, apiError } from "../../lib/auth";
+import { getDb } from "../../lib/db";
 
 export const config = { runtime: 'nodejs', maxDuration: 300, api: { bodyParser: false } };
 
@@ -14,6 +16,13 @@ export default async function handler(req, res) {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Use POST to upload a PDF." });
   }
+  let user;
+  try {
+    checkOrigin(req);
+    user = await requireUser(req);
+    await rateLimit(req, `upload-${user.id}`, 10);
+    if (await getDb().document.count({ where: { ownerId: user.id } }) >= 30) return res.status(409).json({ error: 'This workspace supports up to 30 briefs.' });
+  } catch (error) { return apiError(res, error); }
   if (!/^multipart\/form-data\b/i.test(req.headers["content-type"] || "")) {
     return res.status(415).json({ error: "Send a PDF as multipart/form-data in the 'file' field." });
   }
@@ -62,7 +71,7 @@ export default async function handler(req, res) {
     const chunks = chunkText(text);
     if (chunks.length > MAX_INGESTION_CHUNKS) return res.status(413).json({error: "This document is too long for a single upload. Split it into PDFs of at most 100 chunks (about 45,000 tokens) each."});
     const embeddedChunks = await embedChunks(chunks);
-    const saved = await saveDocument({ filename: file.originalFilename, text, pageCount: result.total, sizeBytes: file.size, chunks: embeddedChunks });
+    const saved = await saveDocument({ filename: file.originalFilename, text, pageCount: result.total, sizeBytes: file.size, chunks: embeddedChunks, ownerId: user.id });
     return res.status(200).json({
       documentId: saved.documentId,
       filename: file.originalFilename,

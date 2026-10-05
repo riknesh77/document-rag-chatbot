@@ -14,6 +14,7 @@ module.exports = {
   turbopack: {root: __dirname},
   serverExternalPackages: ['@huggingface/transformers', 'onnxruntime-node', 'sharp'],
   outputFileTracingIncludes: {
+    '/api/briefs': inferenceFiles,
     '/api/upload': [...inferenceFiles,
       './node_modules/@napi-rs/canvas/**',
       `./node_modules/@napi-rs/canvas-${process.platform}-${process.arch}*/**`,
@@ -23,6 +24,14 @@ module.exports = {
       './node_modules/pdfjs-dist/wasm/**',
     ],
     '/api/chat': inferenceFiles,
+  },
+  poweredByHeader: false,
+  async headers() {
+    return [{source: '/:path*', headers: [
+      {key: 'X-Content-Type-Options', value: 'nosniff'},
+      {key: 'X-Frame-Options', value: 'DENY'},
+      {key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin'},
+    ]}];
   },
   outputFileTracingExcludes: {
     'next-server': ['**/node_modules/@huggingface/.transformers-*/**'],

@@ -9,3 +9,5 @@ npm-debug.log*
 server-models/
 .vercel/
 .vercel
+*.tsbuildinfo
+work/

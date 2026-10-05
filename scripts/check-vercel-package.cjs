@@ -12,7 +12,7 @@ function traceFiles(route) {
   return files;
 }
 function check() {
-  for (const route of ['upload','chat']) {
+  for (const route of ['upload','chat','briefs']) {
     const files = traceFiles(route);
     for (const model of manifest) for (const file of model.files) {
       assert.ok(files.has(path.resolve('server-models',model.id,file.name)), 'Missing packaged MiniLM file');

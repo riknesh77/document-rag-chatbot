@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "node scripts/prepare-vercel-models.cjs && prisma generate && next build && node scripts/check-vercel-package.cjs",
     "start": "next start",
-    "test": "node --test tests/chunker.cjs tests/embedder.cjs tests/db.cjs tests/retrieval.cjs tests/rag.cjs tests/chat.cjs tests/generator.cjs && node tests/upload-mocked.cjs",
+    "test": "node --test tests/chunker.cjs tests/embedder.cjs tests/db.cjs tests/retrieval.cjs tests/rag.cjs tests/chat.cjs tests/generator.cjs tests/auth.cjs tests/requirements.cjs && node tests/upload-mocked.cjs",
     "test:upload": "node tests/upload-mocked.cjs",
     "db:generate": "prisma generate",
     "db:migrate": "node --env-file=.env.local node_modules/prisma/build/index.js migrate deploy",
@@ -18,7 +18,10 @@
     "debug:rag": "node scripts/rag-diagnose.cjs",
     "test:document": "node scripts/rag-diagnose.cjs --evaluate tests/fixtures/sip-evaluation.json",
     "models:vercel": "node scripts/prepare-vercel-models.cjs --force",
-    "test:vercel-package": "node tests/vercel-package.cjs"
+    "test:vercel-package": "node tests/vercel-package.cjs",
+    "lint": "eslint pages components hooks lib",
+    "typecheck": "tsc --noEmit",
+    "test:capstone": "node tests/capstone-e2e.cjs"
   },
   "engines": {
     "node": ">=20.16.0 <21 || >=22.3.0"
@@ -28,12 +31,22 @@
     "@prisma/client": "6.19.3",
     "formidable": "3.5.4",
     "js-tiktoken": "1.0.21",
-    "next": "16.3.4",
+    "next": "16.3.8",
     "pdf-parse": "2.4.5",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
   "devDependencies": {
-    "prisma": "6.19.3"
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.4",
+    "@types/react": "^19.3.0",
+    "agent-browser": "^0.38.2",
+    "eslint": "^10.12.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "prisma": "6.19.3",
+    "typescript": "^7.0.2"
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.0"
   }
 }
