@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/prepare-vercel-models.cjs && prisma generate && next build && node scripts/check-vercel-package.cjs",
+    "build": "node scripts/prepare-vercel-models.cjs && prisma generate && node scripts/migrate-production.cjs && next build && node scripts/check-vercel-package.cjs",
     "start": "next start",
     "test": "node --test tests/chunker.cjs tests/embedder.cjs tests/db.cjs tests/retrieval.cjs tests/rag.cjs tests/chat.cjs tests/generator.cjs tests/auth.cjs tests/requirements.cjs && node tests/upload-mocked.cjs",
     "test:upload": "node tests/upload-mocked.cjs",
