@@ -1,163 +1,123 @@
-# Document RAG — local models + PostgreSQL
+# BriefProof — deliver what the brief actually asks for
 
-A Next.js Pages Router application: PDF upload → pdf-parse → 500-token chunks
-with approximately 50-token overlap → local MiniLM embeddings → pgvector →
-document-scoped top-five cosine retrieval → local Qwen answer + source citations.
-Local mode needs no inference API key. Vercel uses hosted generation while
-retaining local MiniLM embeddings and reranking; see [VERCEL.md](VERCEL.md) for
-the production environment and packaging setup. Your existing `.env.local` is
-private and is never changed by the application.
+BriefProof helps student project teams and small agencies turn a project brief into a durable checklist with original evidence. Requirements buried in rubrics and client scopes become visible commitments that can be reviewed, completed and exported.
 
-## 🚀 Deployment Status
+This capstone extends the existing Document RAG repository, preserving its ingestion, embeddings, retrieval, evidence checks and Git history.
 
-**Status:** ✅ Live on Vercel
+## Product
+- Public landing page and responsive private workspace.
+- Email/password signup, login, logout and revocable database-backed sessions.
+- Isolated, no-password demo with a preloaded sample brief and checklist.
+- Paste a text brief or upload a text-based PDF up to 4 MB.
+- Groq-powered extraction into features, deliverables, constraints and success metrics.
+- Every saved requirement must contain an exact quote found in its original brief.
+- Completion status persists across refreshes and logins; export to Markdown.
+- Source questions reuse MiniLM + pgvector retrieval, reranking and evidence validation.
+- Questions and answers are saved with the brief.
+- Loading, empty, validation, error and success states.
 
-**Live demo:** https://document-rag-chatbot-two.vercel.app
+## AI component and data handling
+The model proposes a short actionable label and an exact source passage. The server validates category, bounds, duplicates and the verbatim quote before persistence. This verifies citation presence, not extraction completeness or the correctness of every interpretation. Users review the original brief beside the checklist.
 
-Production deployment is running on **Vercel** with **Supabase PostgreSQL + pgvector**,
-local **MiniLM embeddings and reranking**, and **Groq-hosted generation**. The deployed
-pipeline has been verified for PDF upload/indexing, normalized 384-dimensional
-embeddings, document-scoped RAG retrieval, grounded answers with citations, and
-refusal when the requested answer is not supported by the uploaded document.
+The source-question pipeline retrieves document-scoped chunks, reranks evidence, generates a draft, checks support and returns original evidence with citations. Unsupported answers abstain. CPU MiniLM models are packaged and checksum-verified for Vercel; Groq performs hosted generation. Text is sent to Groq when AI extraction or source questions are requested. Do not upload documents you are not authorized to share with that provider.
 
-## Start with the configured Supabase database
+## Architecture
+```mermaid
+flowchart LR
+  U[Browser] --> N[Next.js pages and authenticated API routes]
+  N --> A[Opaque session + ownership checks]
+  A --> P[Prisma]
+  P --> DB[(PostgreSQL + pgvector)]
+  N --> G[Groq requirement extraction]
+  G --> Q[Exact quote validation]
+  Q --> DB
+  N --> M[MiniLM embeddings and reranker]
+  M --> DB
+  DB --> R[Document-scoped retrieval]
+  R --> V[Groq generation + evidence verification]
+  V --> U
+```
 
-Use Node.js 22.3+ or 24 and run these commands from the project root:
+Stack: Next.js 16.3.8 Pages Router, React 19, JavaScript, Prisma 6, PostgreSQL/pgvector, Hugging Face Transformers CPU inference, Groq, Vercel. TypeScript contracts validate the generated database schema; the existing JavaScript codebase is not a strict TypeScript migration.
+
+## Database and authentication
+- `User`: normalized unique email, name, salted scrypt password hash; demo accounts have no password.
+- `Session`: SHA-256 hash of a random 256-bit cookie token, user and expiration. Regular sessions last seven days; demo sessions last 24 hours. Cookies are HttpOnly, SameSite=Lax and Secure in production.
+- `Document`/`Chunk`: existing source storage and 384-dimensional vectors, with added account ownership.
+- `Requirement`: source-backed checklist items and completion state.
+- `Answer`: saved question/result JSON for a brief.
+- `RateLimit`: database-backed fixed-window request counters.
+
+Every document read/write/chat route checks ownership. Legacy documents retain their data with no assigned owner and are not exposed to new accounts. Migrations are additive. PostgreSQL RLS is enabled without browser-facing policies; the privileged server connection performs application access checks. No Supabase client credentials are shipped to the browser.
+
+## Local installation
+Use Node.js 24 and a PostgreSQL database that supports pgvector.
 
 ```powershell
-npm install
-# Only if you do not already have .env.local:
-if (!(Test-Path .env.local)) { Copy-Item .env.example .env.local }
-# Edit DATABASE_URL locally, then:
-npm run models:download
+npm install --onnxruntime-node-install=skip
+Copy-Item .env.example .env.local
+# Edit .env.local locally. Never commit it.
 npm run db:generate
 npm run db:migrate
-npm run db:status
-npm run build
-npm start
+npm run dev
 ```
 
-Open http://localhost:3000. For development use `npm run dev` instead of the last
-two commands. Select a PDF on the homepage, wait for indexing, then click
-"Ask questions about this PDF". `/documents` lists indexed documents.
+Open `http://localhost:3000`. The local Docker option in `compose.yaml` is retained; see [the original technical guide](docs/RAG_ARCHITECTURE.md) for its setup and model details. Use the migration commands only against the intended database. Prisma needs a server role able to access tables after RLS is enabled.
 
-In local Qwen mode, `DATABASE_URL` is the only required environment variable. Use your Supabase
-PostgreSQL connection string; a session pooler connection can be useful when the
-direct IPv6 endpoint is unavailable. Keep credentials in `.env.local`, never in
-`NEXT_PUBLIC_` variables. A leftover OPENAI_API_KEY is ignored and can be removed
-locally. No application code sends requests to OpenAI.
+## Environment variables
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | Server-only PostgreSQL connection string. Required. |
+| `GENERATION_PROVIDER` | `groq` for hosted source questions, or `local` for the retained optional Qwen path. |
+| `GROQ_API_KEY` | Server-only Groq key. Required for checklist extraction and hosted source questions. |
+| `GENERATION_MODEL` | Groq model, default `openai/gpt-oss-20b`; must support JSON mode. |
+| `POSTGRES_PASSWORD` | Optional Docker database password. |
 
-## Local inference
+No signing secret is required: opaque session tokens are stored only as hashes in PostgreSQL. Checklist extraction always uses Groq; local Qwen is an optional source-question path only. Without a Groq key, AI extraction reports a clear configuration error while saved briefs and preloaded demo progress continue working. No fake AI fallback is used.
 
-- `@huggingface/transformers` runs quantized ONNX models on the CPU.
-- Embeddings: `Xenova/all-MiniLM-L6-v2`, normalized 384-dimensional vectors.
-- Evidence reranker: `Xenova/ms-marco-MiniLM-L-6-v2`, 8-bit local cross-encoder.
-- Generation: `onnx-community/Qwen2.5-1.5B-Instruct`, 4-bit CPU inference, deterministic evidence-backed answers.
-- `js-tiktoken` preserves the existing 500/50 document chunks. MiniLM uses a
-  different tokenizer: all text is embedded in <=220 WordPiece subwindows,
-  combined by token-weighted mean and normalized. Questions use the same path.
-- Models download from Hugging Face on first use and are cached in `.cache/models`
-  (ignored by Git). Internet is needed for download and for Supabase, not paid
-  inference. Model preparation is recommended before the first upload.
-- Inference requests are serialized and use at most four CPU threads to bound resource usage.
+Local source questions may download model assets on first use. For local Qwen inference, `npm run models:download` prepares the existing models. Vercel uses build-packaged MiniLM assets and hosted generation rather than downloading a large LLM at request time.
 
-The existing PostgreSQL search still retrieves at most five document-scoped chunks.
-Overlapping adjacent chunks are reconstructed with source provenance. PDF line
-wraps stay inside sentences; headings and neighboring sentences preserve context.
-A local cross-encoder ranks evidence within those retrieved chunks; the best eight
-sentences and neighbors nominate complete paragraphs. No cosine or reranker score
-is used as a refusal threshold, and no additional database chunks are fetched.
-
-Qwen receives this focused, explicitly delimited context and the user's question.
-The 6,144-token input budget includes the actual chat template; output is limited
-to 160 new tokens, with deterministic generation. A separate local entailment
-check verifies the draft against original evidence. Only a positive check permits
-an answer. The response uses the document's own sentence or paragraph, with exact
-retrieved-chunk citations; the unchecked generated draft is never displayed.
-This avoids refusing supported paraphrases merely because wording differs and
-removes invented wording from the returned answer. An abstention or failed check
-produces the standard not-found message. These local model checks are fallible;
-review the cited text, especially for complex reasoning.
-
-### Local debugging (development only)
-
+## Validation
 ```powershell
-npm run debug:rag -- 5 "Which metrics are proposed for ticket classification?"
-npm run test:document
-```
-
-The first command accepts any existing document ID and question. The second runs
-the eight-case regression fixture against the existing SIP Project Idea Draft.pdf
-(document 5); it fails clearly if that document is absent or renamed. The fixture
-contains expectations, not responses used by the application.
-
-Full diagnostics are written to ignored `.cache/diagnostics` JSON files: extracted
-text, chunk integrity, retrieval ranks/scores/text, selected context, exact prompt,
-raw model output, entailment-check prompts/results, validation decision, final answer and citations. These files
-contain your document content; keep them private. They contain no connection URLs,
-credentials, environment dumps, or vectors. Debugging is disabled when NODE_ENV is
-production. The chat API never accepts a debug/trace callback from a request body.
-
-## Database and migrations
-
-Document: id, title, filename, content, pageCount, sizeBytes, createdAt.
-Chunk: id, documentId, index, text, tokenCount, startToken, endToken,
-embeddingModel, embedding `vector(384) NOT NULL`.
-The document foreign key cascades on delete; (documentId, index) is unique.
-Document + chunks are committed in one transaction. Vectors stay server-side.
-Cosine retrieval uses parameterized SQL, an explicit document filter, and LIMIT 5.
-
-The historical 1536-dimensional migration remains unchanged so existing Prisma
-migration history is valid. The new migration changes the column to vector(384)
-and the model constraint. It intentionally refuses to run if chunks exist, rather
-than silently corrupt or discard vectors. Re-index old documents if necessary.
-Do not use `prisma db push` in place of the migrations.
-
-For a new local database instead of Supabase, install Docker Desktop with Linux
-containers, set POSTGRES_PASSWORD and a matching local DATABASE_URL from
-`.env.example`, and run:
-
-```powershell
-docker compose --env-file .env.local up -d --wait
-npm run db:migrate
-```
-
-The migration creates the vector extension. Managed databases must already have
-pgvector available and permit extension/table creation.
-
-## Verification
-
-```powershell
+npm run lint
+npm run typecheck
 npm test
-npm run test:models
 npm run build
-# With an initialized real database and a running application:
-npm run test:e2e
+# Start the app before this real database/API test:
+npm run test:capstone
 ```
 
-The normal suite uses mocked inference/database boundaries and no network.
-`npm run test:models` runs the real cached MiniLM/Qwen models, with a supplied
-retrieval fixture, to verify a known answer and an unsupported-question refusal.
-The explicit real end-to-end suite loads `.env.local`, creates one synthetic PDF,
-POSTs it to the running app, verifies database rows and 384-dimensional vectors,
-asks a known-answer question and a missing-answer question, and verifies citations.
-It also checks cosine ranking/isolation in a transaction that is rolled back.
-The uploaded verification document is retained so it can be inspected in the UI.
-Use TEST_BASE_URL to select another local port.
+`TEST_BASE_URL` selects a deployed URL; `TEST_AI=1` additionally exercises real hosted extraction, quote validation, completion persistence, embeddings, retrieval and a saved answer. The test creates isolated accounts with random in-memory credentials and prints only the account identifier for cleanup. Unit tests mock provider calls and do not consume inference credits. Validation evidence and deployment status are in [docs/VERIFICATION.md](docs/VERIFICATION.md).
 
-## Limits
+## Deployment
+Repository: https://github.com/riknesh77/document-rag-chatbot
 
-This is a local, single-user development application, not a public multi-user
-service: there is no authentication or user ownership model. Document isolation
-is by selected document ID. Do not expose it publicly without access controls.
-Answers favor quoted evidence rather than free-form synthesis. The local model may
-still decline valid questions or select incomplete evidence,
-particularly for synthesis, multilingual text, or complex reasoning. Verified
-quotations reduce fabricated wording but cannot prove that a selected quotation
-logically answers every question. It is not a guarantee of
-factual correctness. Review the cited text.
-PDFs must contain extractable text (no OCR); uploads are limited to 4 MB. Original
-PDF binaries are not retained. Chat history is in browser memory. There is no
-streaming or background job queue. Documents listing currently shows the latest
-100 uploads. First model load, answering, and long-document indexing can be slow on CPU. The Qwen
-ONNX weight file is approximately 1.67 GiB; prepare models before first use.
+Existing Vercel production alias: https://document-rag-chatbot-two.vercel.app
+
+The alias alone does not prove this capstone version is deployed. See `docs/VERIFICATION.md` for the verified commit/deployment state. Vercel must use Node 24, the committed `vercel.json`, production database access and the server environment variables above. Build preparation downloads and validates the two small MiniLM models and checks function tracing, native bindings and size budgets. Database migrations must be applied before deploying a schema-dependent version; both capstone migrations were applied during implementation.
+
+## Demo and capstone materials
+- [Capstone brief](docs/CAPSTONE_BRIEF.md)
+- [Three-minute demo script](docs/DEMO_SCRIPT.md)
+- [Seven-slide pitch content](docs/PITCH_DECK.md)
+- [Audit and decisions](docs/AUDIT.md)
+- [Existing RAG architecture and model details](docs/RAG_ARCHITECTURE.md)
+
+Open the homepage → Explore a private demo → Open a private demo. The sample checklist is preloaded and visibly labeled; create a new brief to demonstrate live AI extraction. A demo session stays in its browser for 24 hours, with no shared password. Create a regular account for login access across browsers.
+
+## Screenshots
+Desktop landing, private review and mobile review screenshots accompany the capstone deliverables. Capture fresh production screenshots after a release; do not present a development screenshot as proof of production deployment.
+
+## Limitations
+- AI can omit requirements or misinterpret a source. Verbatim evidence checks do not certify completeness.
+- Text extraction supports text-based PDFs; no OCR or encrypted-PDF support.
+- Checklist extraction supports briefs up to 22,000 characters; up to 30 briefs per workspace.
+- No email verification, password recovery, MFA, collaboration or billing.
+- Completion is a user-reported checkbox, not verification of delivered code.
+- Hosted AI depends on provider quota/availability; first indexing can have a cold start.
+- Legacy unassigned documents are preserved but require a deliberate administrator ownership migration to appear in an account.
+- Demo accounts, expired sessions and old rate counters need periodic maintenance; no cleanup automation is provisioned.
+- Engineering test signups are not a claim of real customer acquisition. Industry panel review is an external program activity.
+
+## Future improvements
+Email verification/recovery and MFA; team spaces and reviewer editing; version-to-version scope comparisons; a labeled extraction evaluation set; file deletion/account data management; scheduled demo cleanup; integrations and validated pricing.
