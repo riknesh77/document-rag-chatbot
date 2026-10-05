@@ -87,26 +87,35 @@ npm run build
 npm run test:capstone
 ```
 
-`TEST_BASE_URL` selects a deployed URL; `TEST_AI=1` additionally exercises real hosted extraction, quote validation, completion persistence, embeddings, retrieval and a saved answer. The test creates isolated accounts with random in-memory credentials and prints only the account identifier for cleanup. Unit tests mock provider calls and do not consume inference credits. Validation evidence and deployment status are in [docs/VERIFICATION.md](docs/VERIFICATION.md).
+`TEST_BASE_URL` selects a deployed URL; `TEST_AI=1` additionally exercises real hosted extraction, quote validation, completion persistence, embeddings, retrieval and a saved answer. `TEST_PDF=1` exercises real PDF extraction, indexing, saved ownership and a hosted source answer. The test creates isolated accounts with random in-memory credentials and prints only the account identifier for cleanup. Unit tests mock provider calls and do not consume inference credits. `npm run test:e2e` is the retained direct-database ingestion/ranking check: its `.env.local` database must match the app being tested. Validation evidence and deployment status are in [docs/VERIFICATION.md](docs/VERIFICATION.md).
 
 ## Deployment
 Repository: https://github.com/riknesh77/document-rag-chatbot
 
 Existing Vercel production alias: https://document-rag-chatbot-two.vercel.app
 
-The alias alone does not prove this capstone version is deployed. See `docs/VERIFICATION.md` for the verified commit/deployment state. Vercel must use Node 24, the committed `vercel.json`, production database access and the server environment variables above. Build preparation downloads and validates the two small MiniLM models and checks function tracing, native bindings and size budgets. Database migrations must be applied before deploying a schema-dependent version; both capstone migrations were applied during implementation.
+See [verification evidence](docs/VERIFICATION.md) for the verified commit/deployment state. Vercel must use Node 24, the committed `vercel.json`, production database access and the server environment variables above. Build preparation downloads and validates the two small MiniLM models and checks function tracing, native bindings and size budgets.
+
+For this existing MiniLM database, production builds run `scripts/migrate-production.cjs`: it validates the legacy columns and 384-dimensional vectors, takes a transaction advisory lock, and applies the two reviewed additive migrations atomically through the working pooled connection. It records standard Prisma migration history and baselines the legacy schema only when history is completely absent. It refuses unresolved or partial migration history and never replays the old embedding conversion against populated tables. A failure rolls back and blocks promotion. For a fresh database, apply all migrations with `npm run db:migrate` before the first production build. Future migrations must be reviewed and explicitly added to the production runner or applied using Prisma with a session/direct connection.
 
 ## Demo and capstone materials
 - [Capstone brief](docs/CAPSTONE_BRIEF.md)
 - [Three-minute demo script](docs/DEMO_SCRIPT.md)
 - [Seven-slide pitch content](docs/PITCH_DECK.md)
+- [Editable seven-slide PowerPoint](docs/PITCH_DECK.pptx)
 - [Audit and decisions](docs/AUDIT.md)
 - [Existing RAG architecture and model details](docs/RAG_ARCHITECTURE.md)
 
 Open the homepage → Explore a private demo → Open a private demo. The sample checklist is preloaded and visibly labeled; create a new brief to demonstrate live AI extraction. A demo session stays in its browser for 24 hours, with no shared password. Create a regular account for login access across browsers.
 
 ## Screenshots
-Desktop landing, private review and mobile review screenshots accompany the capstone deliverables. Capture fresh production screenshots after a release; do not present a development screenshot as proof of production deployment.
+Captured from the public production site on 5 October 2026:
+
+![BriefProof landing](docs/screenshots/landing.png)
+
+![Private brief review with saved completion](docs/screenshots/review.png)
+
+[390-pixel mobile review](docs/screenshots/mobile.png)
 
 ## Limitations
 - AI can omit requirements or misinterpret a source. Verbatim evidence checks do not certify completeness.

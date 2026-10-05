@@ -17,12 +17,14 @@ async function run() {
   }
   assert.equal((await call('/api/documents')).status, 401);
   assert.equal((await call('/dashboard')).status, 307);
-  assert.equal((await call('/api/auth', { action: 'signup', name: 'Test builder', email, password })).status, 201);
+  const signup = await call('/api/auth', { action: 'signup', name: 'Test builder', email, password });
+  assert.equal(signup.status, 201, `Signup failed: ${signup.data?.error || signup.status}`);
   assert.equal((await call('/api/auth')).data.user.email, email);
   assert.equal((await call('/api/documents')).data.documents.length, 0);
   const created = await call('/api/briefs', { action: 'create', title: 'Verification brief', content: DEMO_TEXT });
   assert.equal(created.status, 201);
   const id = created.data.documentId;
+  let pdfId;
   assert.equal((await call(`/api/briefs?id=${id}`)).data.document.content, DEMO_TEXT);
   assert.equal((await call(`/api/briefs?id=${id}`, undefined, { useCookie: false })).status, 401);
   assert.equal((await call('/api/briefs', { action: 'create', title: 'Hostile origin', content: DEMO_TEXT }, { origin: 'https://evil.example' })).status, 403);
@@ -40,21 +42,40 @@ async function run() {
     const answer = await call('/api/chat', { documentId: id, question: 'What is the pilot budget?' });
     assert.equal(answer.status, 200, `Chat failed: ${answer.data?.error}`);
     assert.ok(answer.data.grounded && answer.data.answer.includes('2,000'));
+    assert.ok(answer.data.sources.length > 0);
     assert.ok(answer.data.sources.every(source => source.documentId === id));
     assert.equal((await call(`/api/briefs?id=${id}`)).data.document.answers.length, 1);
     console.log('PASS live AI extraction, exact quotes, persisted progress, pgvector indexing, grounded answer and saved history');
+  }
+  if (process.env.TEST_PDF === '1') {
+    const text = 'The Aurora research station opens on 14 March 2027. The director is Dr Maya Chen. The station is located in Tromso, Norway.';
+    const form = new FormData();
+    form.append('file', new Blob([require('./pdf-fixture.cjs').pdf(text)], { type: 'application/pdf' }), 'verification-brief.pdf');
+    const upload = await fetch(base + '/api/upload', { method: 'POST', headers: { Cookie: cookie, Origin: base }, body: form, signal: AbortSignal.timeout(300000) });
+    const data = await upload.json();
+    assert.equal(upload.status, 200, `PDF upload failed: ${data.error}`);
+    assert.equal(data.pageCount, 1);
+    assert.ok(data.chunkCount > 0 && data.embeddings.dimensions === 384);
+    pdfId = data.documentId;
+    assert.ok((await call(`/api/briefs?id=${pdfId}`)).data.document.content.includes('14 March 2027'));
+    const answer = await call('/api/chat', { documentId: pdfId, question: 'When does the Aurora research station open?' });
+    assert.equal(answer.status, 200, `PDF chat failed: ${answer.data?.error}`);
+    assert.ok(answer.data.grounded && answer.data.answer.includes('14 March 2027'));
+    assert.ok(answer.data.sources.length > 0 && answer.data.sources.every(source => source.documentId === pdfId));
+    console.log('PASS production PDF extraction, private persistence, MiniLM indexing and grounded source answer');
   }
   const ownerCookie = cookie;
   assert.equal((await call('/api/auth', { action: 'logout' })).status, 200);
   assert.equal((await call('/api/documents')).status, 401);
   assert.equal((await call('/api/auth', { action: 'login', email, password: 'wrong password' })).status, 401);
   assert.equal((await call('/api/auth', { action: 'login', email, password })).status, 200);
-  assert.equal((await call('/api/documents')).data.documents[0].id, id);
+  assert.ok((await call('/api/documents')).data.documents.some(document => document.id === id));
   await call('/api/auth', { action: 'logout' });
   await call('/api/auth', { action: 'demo' });
   assert.equal((await call(`/api/briefs?id=${id}`)).status, 404);
   assert.equal((await call('/api/briefs', { action: 'extract', documentId: id })).status, 404);
   assert.equal((await call('/api/chat', { documentId: id, question: 'What is the budget?' })).status, 404);
+  if (pdfId) assert.equal((await call(`/api/briefs?id=${pdfId}`)).status, 404);
   const sample = (await call('/api/documents')).data.documents[0];
   const sampleDetails = (await call(`/api/briefs?id=${sample.id}`)).data.document;
   assert.equal(sampleDetails.requirements.length, 7);
